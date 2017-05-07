@@ -66,6 +66,8 @@ void clearClientQueue(clientNode_t **head)
     while (*head != NULL)
     {
         clientNode_t *next = (*head)->next;
+        if (TEMP_FAILURE_RETRY(close(head->clientSocket)) < 0)
+            ERR("close");
         free(*head);
         *head = next;
     }
