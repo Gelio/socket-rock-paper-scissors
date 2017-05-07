@@ -23,18 +23,6 @@ void parseArguments(int argc, char **argv, char **serverHost, char **port)
         usage(argv[0]);
 }
 
-void playRound(int socketDes)
-{
-    char letter;
-    do {
-        printf("Your input [rps]: ");
-        letter = (char)getc(stdin);
-    } while (letter != 'r' && letter != 'p' && letter != 's');
-
-    if (bulkWrite(socketDes, &letter, 1) <= 0)
-        ERR("sending letter to server");
-}
-
 int main(int argc, char **argv)
 {
     char *serverHost,
