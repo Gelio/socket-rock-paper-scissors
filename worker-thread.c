@@ -61,11 +61,12 @@ int readClientPlay(int clientSocket)
 int getPlayerInput(int clientSocket)
 {
     int playerInput;
+    char letter = 'g';
     do {
-        char message[] = "Your input [rps]: ";
-        if (bulkWrite(clientSocket, message, strlen(message)) <= 0)
+        if (bulkWrite(clientSocket, &letter, 1) <= 0)
             return PLAY_ERROR;
         playerInput = readClientPlay(clientSocket);
+        letter = 'r';
     } while (playerInput == PLAY_UNKNOWN);
 
     return playerInput;
@@ -98,6 +99,11 @@ int comparePlays(int play1, int play2)
     }
 }
 
+ssize_t sendLetter(int clientSocket, char letter)
+{
+    return bulkWrite(clientSocket, &letter, 1);
+}
+
 void *workerThread(void *args)
 {
     workerThreadArgs_t *workerArgs = (workerThreadArgs_t*)args;
@@ -120,7 +126,7 @@ void *workerThread(void *args)
     {
         roundNumber++;
         printf("[%d] round %d, fight!\n", workerArgs->id, roundNumber);
-        waitForBothPlayers(client1->clientSocket, client2->clientSocket);
+        // waitForBothPlayers(client1->clientSocket, client2->clientSocket);
 
         int player1Input = getPlayerInput(client1->clientSocket);
         if (player1Input == PLAY_ERROR)
@@ -131,25 +137,57 @@ void *workerThread(void *args)
 
         int roundResult = comparePlays(player1Input, player2Input);
         if (roundResult == 0)
+        {
             printf("[%d] draw\n", workerArgs->id);
+            if (sendLetter(client1->clientSocket, 'd') <= 0)
+                goto disconnect;
+            if (sendLetter(client2->clientSocket, 'd') <= 0)
+                goto disconnect;
+        }
         else if (roundResult == 1)
         {
             printf("[%d] player 1 won\n", workerArgs->id);
             client1Points++;
+            if (sendLetter(client1->clientSocket, 'w') <= 0)
+                goto disconnect;
+            if (sendLetter(client2->clientSocket, 'l') <= 0)
+                goto disconnect;
         }
         else    // roundResult == 2
         {
             printf("[%d] player 2 won\n", workerArgs->id);
             client2Points++;
+            if (sendLetter(client1->clientSocket, 'l') <= 0)
+                goto disconnect;
+            if (sendLetter(client2->clientSocket, 'w') <= 0)
+                goto disconnect;
         }
     }
 
     if (client1Points == client2Points)
+    {
         printf("[%d] game ended with a draw (%d points)\n", workerArgs->id, client1Points);
+        if (sendLetter(client1->clientSocket, 'D') <= 0)
+            goto disconnect;
+        if (sendLetter(client2->clientSocket, 'D') <= 0)
+            goto disconnect;
+    }
     else if (client1Points > client2Points)
+    {
         printf("[%d] player 1 won (%d vs %d points)\n", workerArgs->id, client1Points, client2Points);
+        if (sendLetter(client1->clientSocket, 'W') <= 0)
+            goto disconnect;
+        if (sendLetter(client2->clientSocket, 'L') <= 0)
+            goto disconnect;
+    }
     else    // (client1Points < client2Points)
+    {
         printf("[%d] player 2 won (%d vs %d points)\n", workerArgs->id, client2Points, client1Points);
+        if (sendLetter(client1->clientSocket, 'L') <= 0)
+            goto disconnect;
+        if (sendLetter(client2->clientSocket, 'W') <= 0)
+            goto disconnect;
+    }
 
 disconnect:
     printf("[%d] closing connection to the clients\n", workerArgs->id);
