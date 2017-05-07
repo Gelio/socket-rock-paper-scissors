@@ -23,16 +23,19 @@ void acceptNewClient(struct serverData *serverData, int threadId)
 
     addClientToQueue(serverData->clientQueue, clientSocket, &clientAddr, &clientAddrLen);
 
-    pthread_t tid;
-    workerThreadArgs_t *workerArgs = malloc(sizeof(workerThreadArgs_t));
-    if (workerArgs == NULL)
-        ERR("malloc");
-    workerArgs->id = threadId;
-    workerArgs->serverData = serverData;
-    if (pthread_create(&tid, NULL, workerThread, (void*)workerArgs) != 0)
-        ERR("pthread_create");
+    if (threadId > 0)
+    {
+        pthread_t tid;
+        workerThreadArgs_t *workerArgs = malloc(sizeof(workerThreadArgs_t));
+        if (workerArgs == NULL)
+            ERR("malloc");
+        workerArgs->id = threadId;
+        workerArgs->serverData = serverData;
+        if (pthread_create(&tid, NULL, workerThread, (void*)workerArgs) != 0)
+            ERR("pthread_create");
 
-    addWorkerThreadToList(serverData->workerThreadsList, tid, threadId);
+        addWorkerThreadToList(serverData->workerThreadsList, tid, threadId);
+    }
 
     if (pthread_mutex_unlock(serverData->clientQueueMutex) != 0)
         ERR("pthread_mutex_unlock");
@@ -41,6 +44,8 @@ void acceptNewClient(struct serverData *serverData, int threadId)
 void serverLoop(struct serverData *serverData)
 {
     int nextThreadId = 1;
+    int createGame = 0; // if not zero (if false), upon a new connection a new game will be created
+    // (basically it means there is one connected client waiting)
 
     fd_set readFds;
     while (!shouldQuit)
@@ -54,16 +59,21 @@ void serverLoop(struct serverData *serverData)
             ERR("pselect");
         }
 
-        acceptNewClient(serverData, nextThreadId++);
-        printf("[SERVER] client connected\n");
+
+        acceptNewClient(serverData, createGame ? nextThreadId++ : 0);
+        if (createGame)
+            printf("[SERVER] client connected, creating game\n");
+        else
+            printf("[SERVER] client connected\n");
+        createGame = !createGame;
     }
 }
 
 int main(int argc, char **argv)
 {
-    int groupSize;
+    int roundsCount;
     int16_t port;
-    parseArguments(argc, argv, &groupSize, &port);
+    parseArguments(argc, argv, &roundsCount, &port);
 
     printf("[SERVER] Initialization\n");
     workerThreadNode_t *workerThreadsList = NULL;
@@ -81,6 +91,7 @@ int main(int argc, char **argv)
     serverData.workerThreadsListMutex = &workerThreadsListMutex;
     serverData.clientQueue = &clientQueue;
     serverData.clientQueueMutex = &clientQueueMutex;
+    serverData.roundsCount = roundsCount;
 
     bindSocketAndListen(serverData.serverSocket, port, BACKLOG);
 
