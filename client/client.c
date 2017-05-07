@@ -29,7 +29,7 @@ int main(int argc, char **argv)
         *port;
     parseArguments(argc, argv, &serverHost, &port);
 
-    printf("Connecting to %d on port %d\n", serverHost, port);
+    printf("Connecting to %s on port %s\n", serverHost, port);
     int socketDes = connectSocket(serverHost, port);
     printf("Connected\n");
 
